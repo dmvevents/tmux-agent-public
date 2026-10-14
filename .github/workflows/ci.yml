@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: "${{ matrix.node }}" }
       - name: Install tmux (linux)
         if: runner.os == 'Linux'
@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - uses: actions/cache@v4
         with:
@@ -97,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: npm ci || npm install
       - run: npm run build
@@ -129,7 +129,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: sudo apt-get update && sudo apt-get install -y tmux
       - run: npm ci || npm install
@@ -151,7 +151,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - name: Shipped-tree audit (gating — feeds ci-ok)
         run: npm audit --omit=dev --audit-level=moderate
