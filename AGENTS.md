@@ -87,6 +87,5 @@ that passed while real rendering failed. This is not optional for a UI claim.
 
 The maintainers' project board is the single source of truth. **No card reaches Done without the command
 and its output in the body** — a green board that lies is worse than a red board that is true.
-Plane rate-limits aggressively: pace calls ~15s, back off 45s+ on 429, cache issue ids.
 
 Cards labelled `needs-decision` are owner-only. Escalate; never self-answer.

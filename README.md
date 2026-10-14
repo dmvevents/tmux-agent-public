@@ -33,7 +33,7 @@ tmux-agent help                                            # every verb; `tmux-a
 ```
 
 > **Status: v0.1.0, not published to npm.** The npm package named `tmux-agent` is a different project, so do not
-> `npm install` it; the clone above IS the install (its `npm link` puts `tmux-agent` and `tmux-agent-mcp` on your PATH),
+> `npm install` it; the clone above IS the install (its `npm install -g .` puts `tmux-agent` and `tmux-agent-mcp` on your PATH),
 > and `test/smoke-readme.sh` runs this block and the demo below from a fresh home on every push.
 
 ## 5-minute demo (no config)
