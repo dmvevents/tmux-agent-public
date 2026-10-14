@@ -1,0 +1,68 @@
+{
+  "name": "tmux-agent",
+  "version": "0.1.0",
+  "description": "Unified tmux orchestration + observability for AI agent workflows: spawn sessions with lineage, verified input, structured logs, cost/waste analytics, and an audited MCP control surface.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "tmux-agent": "dist/bin/tmux-agent.js",
+    "tmux-agent-mcp": "dist/mcp/server.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build-stamp.mjs",
+    "smoke": "bash test/smoke.sh && bash test/smoke-web.sh && bash test/smoke-readme.sh",
+    "test": "npm run build && npm run test:unit && npm run test:changelog && npm run smoke",
+    "prepublishOnly": "npm run build && npm test",
+    "test:unit": "node -e \"const{readdirSync}=require('fs');const{execFileSync}=require('child_process');const f=readdirSync('test').filter(x=>x.endsWith('.test.js')).map(x=>'test/'+x);console.error('running: '+f.join(' '));execFileSync(process.execPath,['--test',...f],{stdio:'inherit'})\"",
+    "test:changelog": "bash test/changelog-current.sh",
+    "lint": "eslint . && tsc -p tsconfig.json --noEmit",
+    "lint:fix": "eslint . --fix",
+    "test:coverage": "node -e \"const{readdirSync}=require('fs');const{execFileSync}=require('child_process');const f=readdirSync('test').filter(x=>x.endsWith('.test.js')).map(x=>'test/'+x);execFileSync(process.execPath,['--experimental-test-coverage','--test',...f],{stdio:'inherit'})\"",
+    "test:ui": "SMOKE_UI=1 python3 test/ui-acceptance.py",
+    "test:browser-audit": "python3 test/browser-audit/audit.py"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "eslint": "^9.39.5",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.68.0"
+  },
+  "keywords": [
+    "tmux",
+    "mcp",
+    "agents",
+    "orchestration",
+    "observability",
+    "claude-code"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dmvevents/tmux-agent-public.git"
+  },
+  "homepage": "https://github.com/dmvevents/tmux-agent-public",
+  "bugs": {
+    "url": "https://github.com/dmvevents/tmux-agent-public/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "dist/index.d.ts"
+}

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Pre-push gate: the push must build from the COMMITTED tree, not the working tree.
+#
+# Why this exists: 2026-08-26 a half-commit (bin passing `sink` before WebOpts carried it —
+# the missing piece existed only in the working tree) reached master and broke every CI job
+# (run 33004314830) before a heal commit. Two writers share this checkout, so a green
+# working-tree build proves nothing about what `git push` actually publishes. This hook
+# extracts HEAD with `git archive` into a throwaway dir and builds THAT: a commit that
+# references uncommitted files cannot leave the host.
+#
+# Installed by test/smoke.sh step 16 (idempotent symlink) — a green suite means the gate is
+# in place. Planted-failure regression: test/prepush.test.js watches this script FAIL on a
+# half-commit fixture before trusting it to pass on a healthy one.
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/tmux-agent-prepush.XXXXXX")"
+trap 'rm -rf "$tmp"' EXIT
+
+git -C "$root" archive HEAD | tar -x -C "$tmp"
+
+# Dependencies are not under test — the gate proves the SOURCES are committed. Reuse the
+# working tree's node_modules; without one the pusher never built or tested locally anyway.
+if [ -d "$root/node_modules" ]; then
+  ln -s "$root/node_modules" "$tmp/node_modules"
+else
+  echo "pre-push gate: no node_modules in $root — run npm install before pushing" >&2
+  exit 1
+fi
+
+if ! (cd "$tmp" && npm run --silent build) >"$tmp/build.log" 2>&1; then
+  echo "pre-push gate: HEAD does not build from the committed tree alone." >&2
+  echo "A file this commit needs is probably still uncommitted (the TMUX-68 half-commit trap)." >&2
+  tail -30 "$tmp/build.log" >&2
+  exit 1
+fi

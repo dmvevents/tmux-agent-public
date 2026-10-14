@@ -1,0 +1,166 @@
+{
+  "_comment": "Ground-truth state-classification corpus for TMUX-69. Every `tail` is REAL pane text captured from driving that CLI through tmux-agent (or, where noted, the real strings the profile was written from), normalised to the LAST 6 NON-EMPTY lines — the exact window Monitor.snapshot() classifies (monitor.ts: tail = lines.slice(-6)). `expected` is the state a human observer assigns from the pane alone. `note` records why. This corpus GROWS per misclassification found in the wild (regression per incident); test/state-accuracy.test.js grades against it and fails if BLOCKED or ERROR recall drops below 100% or overall accuracy regresses below the recorded floor. A missed BLOCKED/ERROR is the worst output this tool can produce — a session waiting on a human, or stuck erroring, that reads calm.",
+  "fixtures": [
+    {
+      "id": "claude-write-permission",
+      "cli": "claude-code",
+      "expected": "BLOCKED",
+      "source": "captured 2026-08-27 (isolated ta-corpus socket, Write probe.txt permission dialog)",
+      "note": "the canonical human-gated prompt: a file write awaiting Yes/No. Missing this is the exact 'reads calm while waiting on a human' failure.",
+      "tail": [
+        "  1 hello",
+        " Do you want to create probe.txt?",
+        " ❯ 1. Yes",
+        "   2. Yes, and switch to accept edits (auto-approve file edits and common file commands) for this session (shift+tab)",
+        "   3. No",
+        " Esc to cancel · Tab to amend"
+      ]
+    },
+    {
+      "id": "claude-bash-permission",
+      "cli": "claude-code",
+      "expected": "BLOCKED",
+      "source": "captured 2026-08-27 (isolated ta-corpus socket, Bash ls permission dialog)",
+      "note": "a shell command awaiting approval; the numbered '❯ 1. Yes' menu is the signal.",
+      "tail": [
+        " Do you want to proceed?",
+        " ❯ 1. Yes",
+        "   2. Yes, allow reading from /etc from this project",
+        "   3. Yes, and switch to auto mode · auto mode handles these prompts for you",
+        "   4. No",
+        " Esc to cancel · Tab to amend · ctrl+e to explain"
+      ]
+    },
+    {
+      "id": "codex-update-prompt",
+      "cli": "codex",
+      "expected": "BLOCKED",
+      "source": "captured 2026-08-25 (live codex in a tmux-agent session; also test/profiles.test.js CODEX_UPDATE_PROMPT)",
+      "note": "the bug the codex profile exists for: claude-code's ❯ does not match codex's › so it read IDLE while a human update prompt blocked.",
+      "tail": [
+        "  ✨ Update available! 0.142.5 -> 0.144.4",
+        "  Release notes: https://github.com/openai/codex/releases/latest",
+        "› 1. Update now (runs `npm install -g @openai/codex`)",
+        "  2. Skip",
+        "  3. Skip until next version",
+        "  Press enter to continue"
+      ]
+    },
+    {
+      "id": "codex-command-approval",
+      "cli": "codex",
+      "expected": "BLOCKED",
+      "source": "test/profiles.test.js (codex approval prompt, 2026-08-25)",
+      "note": "codex's own command-approval prompt — the unattended-fleet case that matters most.",
+      "tail": [
+        "Allow command? (y/n)"
+      ]
+    },
+    {
+      "id": "claude-generating",
+      "cli": "claude-code",
+      "expected": "WORKING",
+      "source": "captured 2026-08-27 (isolated ta-corpus socket, mid-generation)",
+      "note": "active generation with the streaming down-token counter; must not read IDLE.",
+      "tail": [
+        "● Bash(echo corpus-hello)",
+        "  ⎿  corpus-hello",
+        "· Generating… (5s · ↓ 83 tokens)",
+        "❯ ",
+        "  [OMC#4.9.1] | session:0m | ctx:25% | 🔧1",
+        "  ⏸ manual mode on · ← 1 agent"
+      ]
+    },
+    {
+      "id": "codex-thinking-spinner",
+      "cli": "codex",
+      "expected": "WORKING",
+      "source": "test/profiles.test.js (codex spinner + interrupt hint, 2026-08-25)",
+      "note": "braille spinner and 'Esc to interrupt' mirror Claude's working state.",
+      "tail": [
+        "⠹ thinking… (Esc to interrupt)"
+      ]
+    },
+    {
+      "id": "claude-api-error-safeguards",
+      "cli": "claude-code",
+      "expected": "ERROR",
+      "source": "captured 2026-08-27 (live fleet sessions worker-a + worker-b)",
+      "note": "a hard API error. ERROR outranks all: a CLI erroring every turn looks idle but is permanently stuck.",
+      "tail": [
+        "● API Error: Fable 5's safeguards flagged this message (https://www.anthropic.com/legal/aup). This sometimes happens with safe, normal conversations. Claude Code can't respond to this message with Fable 5.",
+        "❯ ",
+        "  [OMC#4.9.1] | session:26m | ctx:41% | 🔧54",
+        "  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent"
+      ]
+    },
+    {
+      "id": "codex-stream-error",
+      "cli": "codex",
+      "expected": "ERROR",
+      "source": "test/profiles.test.js (codex stream error, 2026-08-25)",
+      "note": "transport-level error; must outrank a stale WORKING spinner still on screen.",
+      "tail": [
+        "⠹ working",
+        "stream error: rate limited, retrying"
+      ]
+    },
+    {
+      "id": "example-project-idle",
+      "cli": "claude-code",
+      "expected": "IDLE",
+      "source": "captured 2026-08-27 (live fleet session example-project, verified static)",
+      "note": "empty prompt after an update completed; no profile opinion → core-signal default IDLE.",
+      "tail": [
+        "────────────────────────────────────────────────────────────────────────────────",
+        "❯ ",
+        "────────────────────────────────────────────────────────────────────────────────",
+        "  [OMC#4.9.1] | session:32m | ctx:0% | 🔧33",
+        "  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent",
+        "                                        ✔ Update installed · Restart to update"
+      ]
+    },
+    {
+      "id": "lead-1-idle",
+      "cli": "claude-code",
+      "expected": "IDLE",
+      "source": "captured 2026-08-27 (live fleet session lead-1, verified static)",
+      "note": "tasks completed, empty prompt, 'new task?' footer — must NOT read WORKING off the bare 'tokens' in the footer (guarded in the claude profile).",
+      "tail": [
+        "   … +2 completed",
+        "──────────────────────────────────────────────────────────────────────────────────",
+        "❯ ",
+        "──────────────────────────────────────────────────────────────────────────────────",
+        "  [OMC#4.9.1] | session:26m | ctx:41% | 🔧54                new task? /clear to save 408.5k tokens",
+        "  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent"
+      ]
+    },
+    {
+      "id": "codex-at-shell",
+      "cli": "codex",
+      "expected": "IDLE",
+      "source": "test/profiles.test.js CODEX_AT_SHELL (codex --help returned to shell, 2026-08-25)",
+      "note": "back at a plain shell prompt; no profile opinion → IDLE.",
+      "tail": [
+        "  -V, --version",
+        "          Print version",
+        "ubuntu@host:/tmp$"
+      ]
+    },
+    {
+      "id": "claude-completion-summary-idle",
+      "cli": "claude-code",
+      "expected": "IDLE",
+      "source": "captured 2026-08-27 (live fleet session agent, verified static over 3s)",
+      "note": "KNOWN EDGE surfaced by this corpus: the pane is idle at an empty prompt, but a past-tense '✻ Cogitated for 20m 8s' completion summary is still on screen, so the claude profile's bare-✻ WORKING rule fires. Not a BLOCKED/ERROR miss (the safety-critical classes), so it does not trip the recall floor; it is recorded here as a WORKING/IDLE boundary gap for a follow-up profile fix.",
+      "tail": [
+        "✻ Cogitated for 20m 8s",
+        "─────────────────────────────────────────────────────────────────────────────────────",
+        "❯ ",
+        "─────────────────────────────────────────────────────────────────────────────────────",
+        "  [OMC#4.9.1] | session:109048m | ctx:15% | 🔧30                new task? /clear to save 149.6k tokens",
+        "  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent"
+      ]
+    }
+  ]
+}

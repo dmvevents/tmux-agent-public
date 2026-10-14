@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Actions only, deliberately: npm churn on a 2-dependency package creates noise without
+  # security value, while a stale/unpinned action is a real supply-chain risk.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: weekly }

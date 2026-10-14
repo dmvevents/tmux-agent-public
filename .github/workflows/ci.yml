@@ -1,0 +1,204 @@
+name: ci
+on:
+  push: { branches: ["**"] }
+  pull_request:
+
+# Least privilege by default; jobs opt in to what they need.
+permissions: {}
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [20, 22, 24, 26]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ matrix.node }}" }
+      - name: Install tmux (linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y tmux
+      - name: Install tmux (macos)
+        if: runner.os == 'macOS'
+        run: brew install tmux || true
+      - run: tmux -V
+      - run: npm ci || npm install
+      - name: Lint (enforces the CONTRIBUTING design rules mechanically)
+        run: npx eslint .
+      - name: Typecheck (separate gate from build)
+        run: npx tsc -p tsconfig.json --noEmit
+      - run: npm run build
+      - name: Unit tests (pure logic + attack-class guard suite)
+        run: npm run test:unit
+      - name: End-to-end smoke (isolated tmux socket)
+        run: bash test/smoke.sh
+      - name: Browser acceptance (real Chromium — clicks, DOM, console)
+        if: runner.os == 'Linux' && matrix.node == 22
+        run: |
+          pip install --quiet playwright && python3 -m playwright install --with-deps chromium
+          npm run test:ui
+      - name: Web/security smoke — CSRF, DNS-rebinding, token, file modes
+        # This suite covers the highest-risk code in the repo (a loopback API that can type
+        # into terminals). It must gate every push, not just run locally.
+        run: bash test/smoke-web.sh
+      - name: README first-run smoke — the Install and demo blocks run verbatim from a fresh HOME and npm prefix
+        run: bash test/smoke-readme.sh
+
+  tmux-versions:
+    # TMUX-67: README/VERSIONING claim tmux >= 3.2, but the distro jobs above validate only
+    # whatever apt/brew ships (3.4 / 3.5x) — the claimed range was asserted, never executed.
+    # This job builds the claimed MINIMUM (3.2a) and the primary target (3.4) from source and
+    # runs the e2e smoke against each, so the documented range has evidence on every push.
+    strategy:
+      fail-fast: false
+      matrix:
+        tmux: ["3.2a", "3.4"]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/cache@v4
+        with:
+          path: ~/tmux-${{ matrix.tmux }}
+          key: tmux-src-${{ matrix.tmux }}-${{ runner.os }}
+      - name: Build tmux ${{ matrix.tmux }} from source
+        run: |
+          if [ ! -x "$HOME/tmux-${{ matrix.tmux }}/bin/tmux" ]; then
+            sudo apt-get update && sudo apt-get install -y libevent-dev libncurses-dev bison
+            curl -fsSL -o /tmp/tmux.tar.gz "https://github.com/tmux/tmux/releases/download/${{ matrix.tmux }}/tmux-${{ matrix.tmux }}.tar.gz"
+            tar xzf /tmp/tmux.tar.gz -C /tmp
+            cd "/tmp/tmux-${{ matrix.tmux }}"
+            ./configure --prefix="$HOME/tmux-${{ matrix.tmux }}"
+            make -j"$(nproc)" && make install
+          fi
+      - run: npm ci || npm install
+      - run: npm run build
+      - name: End-to-end smoke against tmux ${{ matrix.tmux }}
+        run: |
+          export PATH="$HOME/tmux-${{ matrix.tmux }}/bin:$PATH"
+          tmux -V
+          tmux -V | grep -qF "${{ matrix.tmux }}"   # the axis must actually be exercised
+          bash test/smoke.sh
+
+  package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci || npm install
+      - run: npm run build
+      - name: Publish hygiene (publint + are-the-types-wrong)
+        run: |
+          npx --yes publint
+          npx --yes @arethetypeswrong/cli --pack . || true   # advisory until exit codes are pinned
+      - name: Tarball must contain no source/test/docs
+        run: |
+          npm pack --dry-run --json > /tmp/pack.json
+          node -e "
+            const j=require('/tmp/pack.json')[0];
+            const leak=j.files.map(f=>f.path).filter(p=>/^(src|test|docs)\//.test(p));
+            if(leak.length){console.error('leaked:',leak.slice(0,5));process.exit(1)}
+            console.log('tarball clean:',j.files.length,'files');
+          "
+
+  browser-audit:
+    # TMUX-40: the 29-check dashboard audit (T13 theme: TMUX-25; T15/T16/T17 the archived-window
+    # note and its paint: TMUX-129/130/131) (promoted from scratch/dashboard-browser-audit)
+    # in a real headless Chromium, against a dashboard this job starts itself on 127.0.0.1.
+    # The audit caught three defects invisible to every node suite (out-of-order detail
+    # renders, poll wiping typed input, alpha-composited badge contrast) — browser-level
+    # verification gates KR4 claims. The web token stays inside the job; the audit reads it
+    # from its isolated home and redacts it from everything it prints.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: sudo apt-get update && sudo apt-get install -y tmux
+      - run: npm ci || npm install
+      - run: npm run build
+      - name: Install Chromium for Playwright
+        run: pip install --quiet playwright && python3 -m playwright install --with-deps chromium
+      - name: Browser audit (29 checks, 0 findings required)
+        run: npm run test:browser-audit
+
+  audit:
+    # TMUX-79: automated vulnerability-advisory signal. Three advisories in five days
+    # (TMUX-78 qs, TMUX-80 hono, TMUX-81 js-yaml) were each caught only by a manual
+    # grooming-fire `npm audit` — detection was incidental, not guaranteed, on a tool
+    # that types into terminals. Two lanes: the shipped tree gates; the full tree only
+    # warns, because the js-yaml high arrived via devDependencies where --omit=dev is blind.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Shipped-tree audit (gating — feeds ci-ok)
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: Full-tree audit (advisory — must never fail the job)
+        run: npm audit --audit-level=high || echo "::warning::full-tree npm audit found advisories — see step log"
+
+  changelog:
+    # TMUX-82: changelog drift is a failing check. KR5 read "CHANGELOG current ✅" for two
+    # weeks by inheritance while the shipped tree changed four times (15afe63, the qs/hono
+    # lock bumps TMUX-78/80, the npm-audit job TMUX-79) with no [Unreleased] entry — nothing
+    # went red. test/changelog-current.sh fails when a commit since CHANGELOG.md last moved
+    # touched src/**, package.json or package-lock.json without it ([no-changelog] in the
+    # subject excuses a commit, visibly). fetch-depth: 0 is load-bearing: on the default
+    # shallow checkout the anchor commit is unreachable and the script refuses to run
+    # (exit 2) rather than pass on an empty scan.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - name: Changelog moved with the shipped tree
+        run: bash test/changelog-current.sh
+
+  ci-ok:
+    # Single required check across the whole matrix.
+    needs: [test, tmux-versions, package, browser-audit, audit, changelog]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Verify all jobs succeeded
+        # `needs.<matrix-job>.result` is the AGGREGATE of the matrix. An earlier version
+        # compared it with `[ ... = "success" ]` inside `set -e`-less bash and reported
+        # failure even when all 7 legs passed — the aggregator itself was the only red check.
+        # Compare explicitly and print what we saw, so a red ci-ok is diagnosable.
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          TMUX_VERSIONS_RESULT: ${{ needs.tmux-versions.result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+          BROWSER_AUDIT_RESULT: ${{ needs.browser-audit.result }}
+          AUDIT_RESULT: ${{ needs.audit.result }}
+          CHANGELOG_RESULT: ${{ needs.changelog.result }}
+        run: |
+          echo "test=$TEST_RESULT tmux-versions=$TMUX_VERSIONS_RESULT package=$PACKAGE_RESULT browser-audit=$BROWSER_AUDIT_RESULT audit=$AUDIT_RESULT changelog=$CHANGELOG_RESULT"
+          if [ "$TEST_RESULT" != "success" ] || [ "$TMUX_VERSIONS_RESULT" != "success" ] || [ "$PACKAGE_RESULT" != "success" ] || [ "$BROWSER_AUDIT_RESULT" != "success" ] || [ "$AUDIT_RESULT" != "success" ] || [ "$CHANGELOG_RESULT" != "success" ]; then
+            echo "::error::one or more required jobs did not succeed"
+            exit 1
+          fi
+          echo "all green"

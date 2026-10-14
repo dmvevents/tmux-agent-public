@@ -1,0 +1,74 @@
+{
+  "_about": "Pane tails captured READ-ONLY from a live fleet on 2026-10-13 (tmux capture-pane -p -J, the last lines the monitor classifies — it reads the last 6 non-empty lines). Scrubbed before entering the repo: hostnames, user names, paths, branch and repository names, and the prose of a finished review are replaced with neutral placeholders of the same shape; every glyph, separator, status-bar token and the word that mis-fired are byte-for-byte what the pane drew. These are the six tails behind one review finding: three Claude Code panes whose status line carries the mode word, one bash prompt after a codex review, one Claude Code permission dialog, and codex's own menu (the CODEX_UPDATE_PROMPT fixture captured 2026-08-25 stands for the sixth). Each tail also states the context figure claudeCodeProfile.contextPct must read from it: the three Claude status lines draw it as a bar (ctx:[#########-]90%, ctx:[########--]79%, ctx:[#######---]67% — null before the bar form was read, when the regex knew only ctx:NN%), the bash prompt and the permission dialog carry no token.",
+  "tails": [
+    {
+      "id": "claude-idle-omc-statusline-a",
+      "pane": "Claude Code at its empty prompt; the OMC status line below it carries the mode word `thinking` between pipes and the context bar",
+      "lines": [
+        "❯",
+        "─────────────────────────────────────────────────────",
+        "  branch:fix/example-branch",
+        "  [OMC#5.5.0] -> 5.7.1 omc update | Model: Fable 5.1 | thinking | session:939m | ctx:[#########-]90% CRITICAL | 🔧217",
+        "  [!!] ctx 90% >= 80% threshold - run /compact",
+        "  [!] omc 5.7.1 - paste: ! npm i -g oh-my-claude-sisyphus@latest",
+        "  ⏵⏵ bypass permissions on (shift+tab to cycle) · PR #38 · ← 1 agent"
+      ],
+      "expect": { "codex": null, "claude-code": null, "chain": null, "contextPct": 90 },
+      "onParent": { "codex": "WORKING", "chain": "codex", "contextPct": null }
+    },
+    {
+      "id": "claude-idle-omc-statusline-b",
+      "pane": "Claude Code at its empty prompt, a second pane: the same status line, no CRITICAL flag",
+      "lines": [
+        "❯",
+        "─────────────────────────────────────────────────────",
+        "  branch:fix/another-branch | ?1",
+        "  [OMC#5.5.0] -> 5.7.1 omc update | Model: Fable 5.1 | thinking | session:191m | ctx:[########--]79% | 🔧185",
+        "  [!] omc 5.7.1 - paste: ! npm i -g oh-my-claude-sisyphus@latest",
+        "  ⏵⏵ bypass permissions on · 1 shell · ← 1 agent"
+      ],
+      "expect": { "codex": null, "claude-code": null, "chain": null, "contextPct": 79 },
+      "onParent": { "codex": "WORKING", "chain": "codex", "contextPct": null }
+    },
+    {
+      "id": "claude-idle-statusline-tail-only",
+      "pane": "Claude Code whose prompt has scrolled above the last six lines; only the status line's tail is visible — the context bar, tool count and permission mode",
+      "lines": [
+        "  ctx:[#######---]67% | 🔧225 🤖1",
+        "  [!] omc 5.7.1 - paste: ! npm i -g oh-my-claude-sisyphus@latest",
+        "  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent"
+      ],
+      "expect": { "codex": null, "claude-code": null, "chain": null, "contextPct": 67 },
+      "onParent": { "codex": null, "chain": null, "contextPct": null }
+    },
+    {
+      "id": "bash-prompt-after-codex-review",
+      "pane": "A bash prompt after a `codex exec` finished: the review's closing prose (one item `approved with nits`), the exit line, the shell's elapsed-time banner and the prompt",
+      "lines": [
+        "Review complete. **Five P1 blockers**: request changes for a, b, c and d; e approved with nits.",
+        "Seven reports include evidence, controls and testing limitations. Appended `DONE` to `STATUS`.",
+        "[Summary](/work/review/SUMMARY.md) · [Full results](/work/review/RESULTS.md)",
+        "CODEX-EXIT 0",
+        "[ble: elapsed 23m1s (CPU 3.2%)] codex exec -p autonomous --skip-git-repo-check 'Review the branch and report'",
+        "user@host:/work/review$"
+      ],
+      "expect": { "codex": null, "claude-code": null, "chain": null, "contextPct": null },
+      "onParent": { "codex": "BLOCKED", "chain": "codex" }
+    },
+    {
+      "id": "claude-permission-dialog",
+      "pane": "Claude Code's permission dialog — a real BLOCKED, read by the claude-code profile (its `❯ 1.` rule), the control that the fix must not disturb",
+      "lines": [
+        " This shell -c script runs rm and could not be checked",
+        "",
+        " Do you want to proceed?",
+        " ❯ 1. Yes",
+        "   2. No",
+        "",
+        " Esc to cancel · Tab to amend"
+      ],
+      "expect": { "codex": "BLOCKED", "claude-code": "BLOCKED", "chain": "claude-code", "contextPct": null },
+      "onParent": { "codex": "BLOCKED", "chain": "claude-code" }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+tmux-agent
+Copyright 2026 Anton Alexander
+
+This product includes software developed as part of the tmux-agent project
+(https://github.com/dmvevents/tmux-agent-public).
+
+Design provenance (concept-level, no code copied):
+- Marker-based command completion and MCP tool naming conventions informed by
+  nickgnd/tmux-mcp (MIT).
+- Policy-group / read-only tool-hiding pattern informed by bnomei/tmux-mcp-rs (MIT).
+- pipe-pane durability + paste-buffer input patterns informed by
+  awslabs/cli-agent-orchestrator (Apache-2.0).
+- `tmux wait-for` synchronous execution is standard tmux functionality (see tmux(1)).
