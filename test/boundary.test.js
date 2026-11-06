@@ -17,6 +17,8 @@
  *     `control.denied` with the documented truncations (boundary.ts:21-22) and the child is still
  *     alive 300 ms later, exiting 0. Watched FAIL first with the installErrorBoundary() call
  *     removed from the probe — node's default terminates it non-zero (output on TMUX-86).
+ *     A third fault with a SHORT message and 6 fixed-text frames must keep the header plus exactly
+ *     3 frames: the long messages fill the 600-char cap first, so only this one pins the 4-line cap.
  *  2. The boundary survives its own ledger failing (the inner try/catch): stay alive, still say so
  *     on stderr. A boundary that dies when the disk is full is no boundary.
  *  3. Both long-running entry points install it — read from the built tree, set-equal both ways
@@ -43,13 +45,22 @@ const BOUNDARY_URL = pathToFileURL(join(ROOT, "dist", "core", "boundary.js")).hr
 const LEDGER_URL = pathToFileURL(join(ROOT, "dist", "core", "ledger.js")).href;
 
 /**
+ * The short fault's planted stack: a header and 6 frames of fixed text. A real frame of the `-e` probe
+ * carries the checkout path, so on a deep checkout the 600-char cap could cut the frames first; fixed
+ * lines keep the kept-frame count independent of where the repository lives.
+ */
+const SHORT_STACK = ["Error: planted-short", ...[1, 2, 3, 4, 5, 6].map((n) => `    at frame${n} (planted.js:${n}:1)`)];
+
+/**
  * The probe is a REAL node process using the production module and the production Ledger on a
  * temp TMUX_AGENT_HOME — exactly how the two entry points build theirs. `deep()` plants a stack
  * deeper than the 4-frame cap; the messages are longer than the 400-char cap. The first stdout
  * line reports the ORIGINAL frame counts so the parent can prove the truncation happened rather
  * than assume it. `ledger` is a template slot: the production Ledger, or one that throws.
+ * `short` adds a third fault: an uncaught exception with a short message and the SHORT_STACK frames.
  */
-function probe({ ledger, install = true }) {
+function probe({ ledger, install = true, short = false }) {
+  const shortFault = short ? `setTimeout(() => { throw Object.assign(new Error("planted-short"), { stack: ${JSON.stringify(SHORT_STACK.join("\n"))} }); }, 100);` : "";
   return `
 import { installErrorBoundary } from ${JSON.stringify(BOUNDARY_URL)};
 import { Ledger } from ${JSON.stringify(LEDGER_URL)};
@@ -61,6 +72,7 @@ const exc = deep(6, () => new Error("planted-exception " + "E".repeat(401)));
 console.log(JSON.stringify({ rejFrames: rej.stack.split("\\n").length, excFrames: exc.stack.split("\\n").length }));
 Promise.reject(rej);                          // (a) unhandled rejection — nothing awaits it
 setTimeout(() => { throw exc; }, 50);         // (b) uncaught exception from a timer, outside any request
+${shortFault}
 setTimeout(() => { console.log("alive"); process.exit(0); }, 300);
 `;
 }
@@ -127,6 +139,23 @@ test("boundary: unhandled rejection + uncaught exception are ledgered (truncated
     const rej = denied.find((e) => e.data.boundary.kind === "unhandledRejection").data.boundary;
     assert.match(rej.message, /^planted-rejection R+$/);
     assert.equal(rej.stack.length, 600, "the 1000-char message must hit the 600-char stack cap");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("boundary: a short message with a deep stack keeps the header plus exactly 3 frames (the 4-line cap alone cuts it)", async () => {
+  // the long messages above fill the 600-char cap before the line cap acts, so they bound the frame count only from
+  // above; this planted stack is 7 short lines, so the ledgered stack must be the header plus exactly the first 3 frames
+  assert.ok(SHORT_STACK.length > 4 && SHORT_STACK.join(" | ").length < 600, "the planted stack must exceed the line cap and fit the char cap");
+  const home = mkdtempSync(join(tmpdir(), "ta-boundary-"));
+  try {
+    const r = await run(probe({ ledger: "new Ledger()", short: true }), home);
+    assert.equal(r.code, 0, `probe exited ${r.code} — the boundary did not keep it alive\nstderr: ${r.stderr}`);
+    const hit = events(home).find((e) => e.type === "control.denied" && e.data.boundary.message === "planted-short");
+    assert.ok(hit, `the short fault was not ledgered as control.denied\nstderr: ${r.stderr}`);
+    assert.equal(hit.data.boundary.kind, "uncaughtException");
+    assert.deepEqual(hit.data.boundary.stack.split(" | "), SHORT_STACK.slice(0, 4), `expected the header plus exactly 3 frames (boundary.ts keeps 4 stack lines): ${hit.data.boundary.stack}`);
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
