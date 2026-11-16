@@ -346,7 +346,7 @@ function err(msg: string) {
 
 /** minimal zod→JSON-schema for our flat object schemas */
 function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
-  const shape = (schema as z.AnyZodObject).shape ?? {};
+  const shape = (schema as z.ZodObject).shape ?? {};
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
   for (const [k, v] of Object.entries(shape) as Array<[string, z.ZodTypeAny]>) {
@@ -356,11 +356,12 @@ function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
     for (;;) {
       if (t instanceof z.ZodOptional) {
         optional = true;
-        t = t.unwrap();
+        t = t.unwrap() as z.ZodTypeAny;
       } else if (t instanceof z.ZodDefault) {
         optional = true;
-        def = (t as z.ZodDefault<z.ZodTypeAny>)._def.defaultValue();
-        t = (t as z.ZodDefault<z.ZodTypeAny>)._def.innerType;
+        // zod 4 stores the default as a value (zod 3 stored a thunk)
+        def = t.def.defaultValue;
+        t = t.def.innerType as z.ZodTypeAny;
       } else break;
     }
     const jt = t instanceof z.ZodNumber ? "number" : t instanceof z.ZodBoolean ? "boolean" : "string";

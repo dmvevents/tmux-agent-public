@@ -46,8 +46,11 @@ after(() => removeTempHomes());
 
 const BIN = join(ROOT, "dist", "bin", "tmux-agent.js");
 const BOUND_MS = 30_000;
-const ARCHIVED_DAY = "2026-08-25";
-const LIVE_DAY = "2026-10-01";
+// Days relative to today (UTC): a fixed LIVE_DAY ages past DEFAULT_RETENTION.keepDays (30) and the verbs' own sweep
+// archives it, so control (a) starts warning — this file went red that way once 2026-10-01 was 31 days old.
+const utcDay = (daysAgo) => new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
+const ARCHIVED_DAY = utcDay(60);
+const LIVE_DAY = utcDay(1);
 
 const socket = () => `ta-mdecay-${process.pid}-${Math.floor(Math.random() * 1e4).toString(36)}`;
 function cli(args, env, timeout = BOUND_MS) {

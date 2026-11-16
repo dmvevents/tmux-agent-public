@@ -7,6 +7,15 @@ installs without an entry here, unless its subject says `[no-changelog]`.
 
 ## [Unreleased]
 
+### Security
+
+- **zod 3 → 4 and `@modelcontextprotocol/sdk` 1.12 → 1.32 clear the runtime advisories.** `npm audit --omit=dev` read 7
+  on `e88b415` (2 high: zod can exhaust memory validating oversized constrained collections; body-parser DoS on
+  trailing bytes after a compressed body. Plus 5 moderate: hono, @hono/node-server, fast-uri, ip-address, qs) and 0 on
+  this change. SDK 1.32.2 declares `zod: "^3.25 || ^4.0"`. `zodToJsonSchema` in `src/mcp/server.ts` follows the zod 4
+  API (`AnyZodObject` is gone; `ZodDefault` holds its default as a value, not a thunk). The MCP `tools/list` reply is
+  byte-identical to `e88b415`'s (5963 bytes). Reported by aws-do-agent's security scan of its vendored copy.
+
 ## [0.1.0] - 2026-10-14
 
 ### Added
