@@ -1,6 +1,6 @@
 {
   "name": "tmux-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Unified tmux orchestration + observability for AI agent workflows: spawn sessions with lineage, verified input, structured logs, cost/waste analytics, and an audited MCP control surface.",
   "license": "Apache-2.0",
   "type": "module",
